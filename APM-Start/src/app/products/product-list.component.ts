@@ -1,11 +1,13 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 
-import { EMPTY } from 'rxjs';
+import { BehaviorSubject, combineLatest, EMPTY, Subject } from 'rxjs';
 // import { EMPTY, Observable, of, Subscription } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map, startWith } from 'rxjs/operators';
 
 // import { Product } from './product';
 import { ProductService } from './product.service';
+import { ProductCategoryService } from "../product-categories/product-category.service";
+import { Product } from './product';
 
 @Component({
   templateUrl: './product-list.component.html',
@@ -16,20 +18,43 @@ export class ProductListComponent {
 // export class ProductListComponent implements OnInit, OnDestroy {
   pageTitle = 'Product List';
   errorMessage = '';
-  categories;
+  // categories;
+  // selectedCategoryId;
 
-  products$ = this.productService.productWithCategory$
+  // Subject no use init value, BehaviorSubjerct start with a default value
+  // private categorySelectedSubject = new BehaviorSubject<number>(0);
+  private categorySelectedSubject = new Subject<number>();
+  categorySelectedAction$ = this.categorySelectedSubject.asObservable();
+
+  products$ = combineLatest([
+    this.productService.productWithCategory$,
+    this.categorySelectedAction$.pipe(startWith(0)) // startWith emit initial value
+  ]) 
     .pipe(
+      map(([products, selectedCategoryId]) => 
+        products.filter(product => 
+          selectedCategoryId ? product.categoryId === selectedCategoryId : true
+      )),
       catchError(err => {
         this.errorMessage = err;
         return EMPTY; // of([])
       })
     );
+
+    
+  categories$ = this.categoryService.productCategory$
+    .pipe(
+      catchError( err => {
+        this.errorMessage = err;
+        return EMPTY;
+      })
+    );  
   // products$: Observable<Product[]>;
   // products: Product[] = [];
   // sub: Subscription;
 
-  constructor(private productService: ProductService) { }
+  constructor(private productService: ProductService,
+    private categoryService: ProductCategoryService) { }
 
   // ngOnInit(): void {
     // this.products$ = 
@@ -56,6 +81,6 @@ export class ProductListComponent {
   }
 
   onSelected(categoryId: string): void {
-    console.log('Not yet implemented');
+    this.categorySelectedSubject.next(+categoryId);
   }
 }
