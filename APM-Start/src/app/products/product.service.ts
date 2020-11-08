@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import { combineLatest, Observable, throwError } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, merge, Observable, Subject, throwError } from 'rxjs';
+import { catchError, map, scan, shareReplay, tap } from 'rxjs/operators';
 
 import { Product } from './product';
 import { Supplier } from '../suppliers/supplier';
@@ -46,12 +46,42 @@ export class ProductService {
           category: categories.find(c => product.categoryId == c.id).name,
           searchKey: [product.productName]
         }) as Product)
-      )
-    );          
+      ),
+      shareReplay(1)
+    );
+
+    private productSelectedSubject = new BehaviorSubject<number>(0);
+    productSelectedAction$ = this.productSelectedSubject.asObservable();
+    
+    selectProduct$ = combineLatest([
+      this.productWithCategory$,
+      this.productSelectedAction$
+    ])
+        .pipe(
+          map(([products, selectedProductId]) => 
+            products.find(product => product.id === selectedProductId)
+          ),
+          tap(product => console.log('selectedProduct', product) )
+        )
+
+    private productInsertedSubject = new Subject<Product>();
+    productInsertedAction$ = this.productInsertedSubject.asObservable();
+    
+    productWithAdd$ = merge(
+      this.productWithCategory$,
+      this.productInsertedAction$ 
+    ).pipe(
+      scan((acc: Product[], value: Product) => [...acc, value])
+    );
+
 
   constructor(private http: HttpClient,
               private supplierService: SupplierService,
               private productCategoryService: ProductCategoryService) { }
+
+  public selectedProductChanged(selectedProductId: number) {
+    this.productSelectedSubject.next(selectedProductId);
+  }            
 
   // getProducts(): Observable<Product[]> {
   //   return this.http.get<Product[]>(this.productsUrl)
@@ -61,6 +91,11 @@ export class ProductService {
   //     );
   // }
 
+  addProduct(newProduct?: Product) {
+    newProduct = newProduct || this.fakeProduct();
+    this.productInsertedSubject.next(newProduct);
+  }
+
   private fakeProduct(): Product {
     return {
       id: 42,
@@ -69,7 +104,7 @@ export class ProductService {
       description: 'Our new product',
       price: 8.9,
       categoryId: 3,
-      // category: 'Toolbox',
+      category: 'Toolbox',
       quantityInStock: 30
     };
   }
