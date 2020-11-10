@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
-import { BehaviorSubject, combineLatest, merge, Observable, Subject, throwError } from 'rxjs';
-import { catchError, map, scan, shareReplay, tap } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, from, merge, Observable, Subject, throwError } from 'rxjs';
+import { catchError, filter, map, mergeMap, scan, shareReplay, tap, toArray } from 'rxjs/operators';
 
 import { Product } from './product';
 import { Supplier } from '../suppliers/supplier';
@@ -53,17 +53,7 @@ export class ProductService {
     private productSelectedSubject = new BehaviorSubject<number>(0);
     productSelectedAction$ = this.productSelectedSubject.asObservable();
     
-    selectProduct$ = combineLatest([
-      this.productWithCategory$,
-      this.productSelectedAction$
-    ])
-        .pipe(
-          map(([products, selectedProductId]) => 
-            products.find(product => product.id === selectedProductId)
-          ),
-          tap(product => console.log('selectedProduct', product) )
-        )
-
+    
     private productInsertedSubject = new Subject<Product>();
     productInsertedAction$ = this.productInsertedSubject.asObservable();
     
@@ -74,15 +64,40 @@ export class ProductService {
       scan((acc: Product[], value: Product) => [...acc, value])
     );
 
-    selectedProductSuppliers$ = combineLatest([
-      this.selectProduct$,
-      this.supplierService.suppliers$
+    // this observer check if any product was selected
+    selectProduct$ = combineLatest([
+      this.productWithCategory$,
+      this.productSelectedAction$
     ])
+    .pipe(
+      map(([products, selectedProductId]) => 
+        products.find(product => product.id === selectedProductId)
+      ),
+      tap(product => console.log('selectedProduct', product))
+    );
+
+    // Get it all approach
+    // this observer if exist a product select and get the suppliers relate with that product
+    // selectedProductSuppliers$ = combineLatest([
+    //   this.selectProduct$,
+    //   this.supplierService.suppliers$
+    // ])
+    // .pipe(
+    //   map(([selectedProduct, suppliers]) => 
+    //     suppliers.filter(supplier => selectedProduct.supplierIds.includes(supplier.id))
+    //   )
+    // )
+
+    // Just In Time Approach
+    selectedProductSuppliers$ = this.selectProduct$
       .pipe(
-        map(([selectedProduct, suppliers]) => 
-          suppliers.filter(supplier => selectedProduct.supplierIds.includes(supplier.id))
-        )
-      )
+        filter(selectedProduct => Boolean(selectedProduct)),
+        mergeMap(selectedProduct => 
+          from(selectedProduct.supplierIds)
+            .pipe(
+              mergeMap(supplierId => this.http.get<Supplier>(`${this.suppliersUrl}/${supplierId}`)),
+              toArray()
+            )));
 
 
   constructor(private http: HttpClient,

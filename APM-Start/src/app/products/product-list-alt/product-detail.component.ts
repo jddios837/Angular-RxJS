@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { EMPTY } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { ProductService } from '../product.service';
@@ -10,16 +10,27 @@ import { ProductService } from '../product.service';
 })
 export class ProductDetailComponent {
   pageTitle = 'Product Detail';
-  errorMessage = '';
-  product;
+  private errorMessageSubject = new Subject<string>();
+  errorMessage$ = this.errorMessageSubject.asObservable();
+  // errorMessage = '';
+  // product;
 
   product$ = this.productService.selectProduct$
     .pipe(
       catchError(err => {
-        this.errorMessage = err;
+        // this.errorMessage = err;
+        this.errorMessageSubject.next(err)
         return EMPTY   
       })
     );
+
+  productSupplier$ = this.productService.selectedProductSuppliers$
+    .pipe(
+      catchError(err => {
+        this.errorMessageSubject.next(err);
+        return EMPTY;
+      })
+    )  
 
   constructor(private productService: ProductService) { }
 
