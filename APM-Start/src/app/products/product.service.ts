@@ -31,7 +31,7 @@ export class ProductService {
                 //   }) as Product)
                 // ),
 
-                tap(data => console.log('Products: ', JSON.stringify(data))),
+                // tap(data => console.log('Products: ', JSON.stringify(data))),
                 catchError(this.handleError)
               );
 
@@ -73,6 +73,16 @@ export class ProductService {
     ).pipe(
       scan((acc: Product[], value: Product) => [...acc, value])
     );
+
+    selectedProductSuppliers$ = combineLatest([
+      this.selectProduct$,
+      this.supplierService.suppliers$
+    ])
+      .pipe(
+        map(([selectedProduct, suppliers]) => 
+          suppliers.filter(supplier => selectedProduct.supplierIds.includes(supplier.id))
+        )
+      )
 
 
   constructor(private http: HttpClient,
